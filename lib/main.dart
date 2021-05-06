@@ -3,11 +3,45 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-void main() {
-  runApp(MyApp());
+import 'dart:async';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:flutter/widgets.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final Future<Database> database = openDatabase(
+      join(await getDatabasesPath(), 'person.db'), onCreate: (db, version) {
+    return db.execute(
+      "CREATE TABLE person(id INTEGER PRIMARY KEY,name TEXT,address TEXT)",
+    );
+  }, version: 1);
+  Future<void> insertPerson(Person person) async {
+    final Database db = await database;
+    db.insert('person', person.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Person>> person() async {
+    final Database db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('person');
+    return List.generate(
+        maps.length,
+        (index) => Person(
+            id: maps[index]['id'],
+            name: maps[index]['name'],
+            address: maps[index]['address']));
+  }
+
+  var per = Person(id: 4, name: 'Mith', address: 'Thailand');
+  await insertPerson(per);
+  print(await person());
+  runApp(MyApp(listOfPerson: person()));
 }
 
 class MyApp extends StatelessWidget {
+  MyApp({this.listOfPerson});
+  final Future<List<Person>> listOfPerson;
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,43 +50,29 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         canvasColor: Colors.green.shade100,
       ),
-      home: MyHomePage(title: 'Http Package Learning'),
+      home: MyHomePage(
+          title: 'Http Package Learning', listOfPerson: listOfPerson),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+class Person {
+  final int id;
+  final String name;
+  final String address;
+  Person({this.id, this.name, this.address});
+  Map<String, dynamic> toMap() {
+    return {'id': id, 'name': name, 'address': address};
+  }
+}
 
+class MyHomePage extends StatefulWidget {
+  MyHomePage({Key key, this.title, this.listOfPerson}) : super(key: key);
+  final Future<List<Person>> listOfPerson;
   final String title;
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
-}
-
-class Album {
-  final int userId;
-  final int id;
-  final String title;
-  Album({this.userId, this.id, this.title});
-
-  factory Album.fromJson(Map<String, dynamic> json) {
-    return Album(
-        userId: json['userId'] as int,
-        id: json['id'] as int,
-        title: json['title'] as String);
-  }
-}
-
-List<Album> parseAlbums(String responseBody) {
-  final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
-  return parsed.map<Album>((json) => Album.fromJson(json)).toList();
-}
-
-Future<List<Album>> fetchAlbums(http.Client client) async {
-  final response = await client
-      .get(Uri.parse('https://jsonplaceholder.typicode.com/albums'));
-  return compute(parseAlbums, response.body);
 }
 
 class _MyHomePageState extends State<MyHomePage> {
@@ -62,34 +82,20 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text('Http Fetch'),
       ),
-      body: Center(
-        child: FutureBuilder<List<Album>>(
-            future: fetchAlbums(http.Client()),
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return ListView.builder(
-                    itemCount: snapshot.data.length,
-                    itemBuilder: (context, index) {
-                      return Column(children: [
-                        Card(
-                          shadowColor: Colors.grey,
-                          color: Colors.grey.shade200,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                                backgroundColor: Colors.yellow.shade100,
-                                foregroundColor: Colors.green.shade500,
-                                child: Text('${snapshot.data[index].id}')),
-                            title: Text('${snapshot.data[index].title}',
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ),
-                      ]);
-                    });
-              } else if (snapshot.hasError) {
-                return Text('${snapshot.error}');
-              }
-              return CircularProgressIndicator();
-            }),
+      body: FutureBuilder(
+        future: widget.listOfPerson,
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            return ListView.builder(
+                itemCount: snapshot.data.length,
+                itemBuilder: (context, index) {
+                  return Text(snapshot.data[index].name);
+                });
+          } else if (snapshot.hasError) {
+            return Text('${snapshot.error}');
+          }
+          return CircularProgressIndicator();
+        },
       ),
     );
   }
