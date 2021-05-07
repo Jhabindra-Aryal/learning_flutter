@@ -3,8 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:video_player/video_player.dart';
 
 void main() {
   runApp(MaterialApp(
@@ -19,44 +18,53 @@ class FlutterDemo extends StatefulWidget {
 }
 
 class _FlutterDemoState extends State<FlutterDemo> {
-  int _counter = 0;
+  VideoPlayerController _controller;
+  Future<void> _initializeVideoPlayerFuture;
   @override
   void initState() {
     super.initState();
-    _loadCounter();
+    _controller = VideoPlayerController.network(
+        'https://player.vimeo.com/external/414250471.sd.mp4?s=650db63649b5f3567e359d5bcd7c409a0d848728&profile_id=139&oauth2_token_id=57447761');
+    _initializeVideoPlayerFuture = _controller.initialize();
   }
 
   @override
   void dispose() {
-    _loadCounter();
+    _controller.dispose();
     super.dispose();
-  }
-
-  _loadCounter() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _counter = (prefs.getInt('counter') ?? 0);
-    });
-  }
-
-  _incrementCounter() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _counter = (prefs.getInt('counter') ?? 0) + 1;
-      prefs.setInt('counter', _counter);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Text('$_counter'),
+        child: FutureBuilder(
+            future: _initializeVideoPlayerFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                return AspectRatio(
+                  aspectRatio: _controller.value.aspectRatio,
+                  child: VideoPlayer(_controller),
+                );
+              } else {
+                return CircularProgressIndicator();
+              }
+            }),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
+        onPressed: () {
+          setState(() {
+            if (_controller.value.isPlaying) {
+              _controller.pause();
+            } else {
+              _controller.play();
+            }
+          });
+        },
+        tooltip: _controller.value.isPlaying ? 'Pause' : 'Play',
+        child: _controller.value.isPlaying
+            ? Icon(Icons.pause_circle_filled_outlined)
+            : Icon(Icons.play_circle_filled_outlined),
       ),
     );
   }
