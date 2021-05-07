@@ -4,74 +4,54 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(MaterialApp(
     title: 'Reading and Writing Files',
-    home: FlutterDemo(storage: CounterStorage()),
+    home: FlutterDemo(),
   ));
 }
 
-class CounterStorage {
-  //Finding the correct local path.
-  Future<String> get _localPath async {
-    final direcotry = await getApplicationDocumentsDirectory();
-    return direcotry.path;
-  }
-
-//Creating a reference to the file location.
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/counter.txt');
-  }
-
-//Reading data from file.
-  Future<int> readCounter() async {
-    try {
-      final file = await _localFile;
-      String contents = await file.readAsString();
-      return int.parse(contents);
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  //Writing data to file.
-  Future<File> writeCounter(int counter) async {
-    final file = await _localFile;
-    return file.writeAsString('$counter');
-  }
-}
-
 class FlutterDemo extends StatefulWidget {
-  FlutterDemo({Key key, @required this.storage}) : super(key: key);
-  final CounterStorage storage;
   @override
   _FlutterDemoState createState() => _FlutterDemoState();
 }
 
 class _FlutterDemoState extends State<FlutterDemo> {
-  int _counter;
+  int _counter = 0;
   @override
   void initState() {
     super.initState();
-    widget.storage.readCounter().then((int value) => setState(() {
-          _counter = value;
-        }));
+    _loadCounter();
   }
 
-  Future<File> _incrementCounter() {
+  @override
+  void dispose() {
+    _loadCounter();
+    super.dispose();
+  }
+
+  _loadCounter() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _counter++;
+      _counter = (prefs.getInt('counter') ?? 0);
     });
-    return widget.storage.writeCounter(_counter);
+  }
+
+  _incrementCounter() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _counter = (prefs.getInt('counter') ?? 0) + 1;
+      prefs.setInt('counter', _counter);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Text('Button tapped $_counter time${_counter == 1 ? '' : 's'}.'),
+        child: Text('$_counter'),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
